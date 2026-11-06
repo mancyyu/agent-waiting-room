@@ -1,0 +1,9 @@
+.DS_Store
+node_modules/
+*.log
+
+# 本地验收和发布材料，不进仓库
+验收清单.md
+发布清单.md
+VERIFY-NOTES.md
+relay-demo/

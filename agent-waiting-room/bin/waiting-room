@@ -1,0 +1,26 @@
+#!/bin/sh
+# 「等一下」命令入口：先找到 Node.js，再运行 scripts/cli.js。
+# 钩子（hook）调用时，任何失败都安静地 exit 0，绝不打断 Claude Code。
+
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+NODE=$(command -v node 2>/dev/null)
+if [ -z "$NODE" ]; then
+  for c in /opt/homebrew/bin/node /usr/local/bin/node "$HOME/.volta/bin/node" "$HOME/.local/bin/node"; do
+    if [ -x "$c" ]; then NODE="$c"; break; fi
+  done
+fi
+if [ -z "$NODE" ] && [ -d "$HOME/.nvm/versions/node" ]; then
+  NODE=$(ls -d "$HOME"/.nvm/versions/node/*/bin/node 2>/dev/null | tail -n 1)
+fi
+
+if [ -z "$NODE" ]; then
+  if [ "$1" = "hook" ]; then
+    cat >/dev/null 2>&1
+    exit 0
+  fi
+  echo "等一下：没有找到 Node.js。请先安装 Node.js（https://nodejs.org ）后再试。" >&2
+  exit 1
+fi
+
+exec "$NODE" "$DIR/scripts/cli.js" "$@"
