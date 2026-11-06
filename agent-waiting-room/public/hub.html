@@ -712,6 +712,9 @@ details.about-local > div { padding: 0 16px 8px; }
 }
 .nudge p { margin: 0; flex: 1 1 240px; }
 .nudge-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.nudge.intro { margin: 12px 0 0; background: var(--accent-soft); border-color: transparent; box-shadow: none; align-items: flex-start; }
+.nudge.intro p b { display: block; margin-bottom: 3px; font-weight: 600; }
+.nudge.intro p span { color: var(--muted); }
 .lang-opts .mode-opt b { font-size: 14px; }
 
 footer { margin-top: 22px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 12px; }
@@ -770,6 +773,15 @@ footer { margin-top: 22px; color: var(--muted); font-size: 12px; display: flex; 
   </header>
 
   <p id="demoStrip" class="demo-strip" hidden><span id="demoStripText"></span></p>
+
+  <div id="introStrip" class="nudge intro" role="note" hidden>
+    <p><b data-i18n="intro.title"></b><span id="introText"></span></p>
+    <div class="nudge-actions">
+      <button id="introOk" class="btn btn-small" type="button" data-i18n="intro.ok"></button>
+      <button id="introRemind" class="btn btn-small" type="button" data-i18n="intro.remind"></button>
+      <button id="introSettings" class="btn btn-small btn-quiet" type="button" data-i18n="intro.settings"></button>
+    </div>
+  </div>
 
   <section class="panel" aria-labelledby="summary">
     <div class="panel-head">
@@ -1062,6 +1074,11 @@ footer { margin-top: 22px; color: var(--muted); font-size: 12px; display: flex; 
           <div class="set-text">
             <label for="setNotify" data-i18n="set.notify"></label>
             <p data-i18n="set.notify.desc"></p>
+            <div class="set-sub">
+              <span data-i18n="set.notifyMin.before"></span>
+              <input id="setNotifyMin" class="field" type="number" min="0" max="3600" step="1" inputmode="numeric" data-i18n-attr="aria-label:set.notifyMin.aria">
+              <span data-i18n="set.notifyMin.after"></span>
+            </div>
           </div>
           <input id="setNotify" class="switch" type="checkbox" role="switch">
         </div>
@@ -1549,6 +1566,9 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
       'set.delay.after': '秒后打开（0–3600）',
       'set.notify': '系统通知',
       'set.notify.desc': '干完或要你确认时，弹一条系统通知。',
+      'set.notifyMin.before': '回合不足',
+      'set.notifyMin.after': '秒就不发「干完了」（0–3600；等你确认和出错照常通知）',
+      'set.notifyMin.aria': '不发「干完了」通知的最短回合秒数',
       'set.bnotif': '浏览器通知',
       'set.bnotif.desc': '页面在后台时，用浏览器弹通知。只对这个浏览器生效。',
       'set.bnotif.btn': '允许浏览器通知',
@@ -1582,6 +1602,7 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
       'toast.savedBrowser': '已保存在这个浏览器里',
       'toast.saveFail': '没保存成功：{e}',
       'toast.delayRange': '延迟要填 0 到 3600 之间的整数秒',
+      'toast.notifyMinRange': '最短秒数要填 0 到 3600 之间的整数',
       'toast.quietSame': '开始和结束不能是同一个时间',
       'set.privacy': '隐私说明',
       'priv.stored': '存了什么',
@@ -1609,6 +1630,11 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
       'gh.installHint': '在终端里依次运行这两条命令，然后重新打开 Claude Code：',
       'nudge.text': '用了一周了，喜欢的话去 GitHub 点个 star。',
       'nudge.close': '不用了',
+      'intro.title': '这个页面是「等一下」插件自动打开的',
+      'intro.text': 'Claude 这一回合干了 {n} 秒还没完，插件就把等候室打开了。干完、出错或要你确认时，这里会弹横幅，系统也会通知你。这条说明只出现这一次。',
+      'intro.ok': '知道了',
+      'intro.remind': '只要提醒，别再自动打开',
+      'intro.settings': '更多设置',
       'about.local.summary': '关于这个插件：为什么做、怎么验证',
       'about.what.h': '这是什么',
       'about.what.p1': '「等一下」是一个 Claude Code 插件。agent 干活的时候，它替你盯着；干完了或者要你确认，它马上叫你。',
@@ -1939,6 +1965,9 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
       'set.delay.after': 'seconds, then open (0–3600)',
       'set.notify': 'System notifications',
       'set.notify.desc': 'Sends a system notification when Claude is done or needs you.',
+      'set.notifyMin.before': 'Skip "Done" for turns under',
+      'set.notifyMin.after': 'seconds (0–3600; "needs you" and "failed" always notify)',
+      'set.notifyMin.aria': 'Shortest turn that still gets a "Done" notification, in seconds',
       'set.bnotif': 'Browser notifications',
       'set.bnotif.desc': 'When this tab is in the background, notify through the browser. Applies to this browser only.',
       'set.bnotif.btn': 'Allow browser notifications',
@@ -1972,6 +2001,7 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
       'toast.savedBrowser': 'Saved in this browser',
       'toast.saveFail': 'Not saved: {e}',
       'toast.delayRange': 'Delay must be a whole number of seconds from 0 to 3600',
+      'toast.notifyMinRange': 'Minimum must be a whole number of seconds from 0 to 3600',
       'toast.quietSame': 'Start and end cannot be the same time',
       'set.privacy': 'Privacy',
       'priv.stored': 'What is stored',
@@ -1999,6 +2029,11 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
       'gh.installHint': 'Run these two commands in your terminal, then restart Claude Code:',
       'nudge.text': "You've been using Waiting Room for a week. If you like it, give it a star on GitHub.",
       'nudge.close': 'Dismiss',
+      'intro.title': 'Waiting Room opened this page on its own',
+      'intro.text': "Claude has been working on this turn for over {n} seconds, so the plugin opened the waiting room. When it finishes, fails, or needs you, you'll get a banner here and a system notification. This note appears only once.",
+      'intro.ok': 'Got it',
+      'intro.remind': 'Remind only, stop auto-opening',
+      'intro.settings': 'More settings',
       'about.local.summary': 'About this plugin: why we built it and how we validate it',
       'about.what.h': 'What this is',
       'about.what.p1': 'Waiting Room is a Claude Code plugin. While an agent works, it keeps watch for you; when the agent is done or needs your input, it pings you right away.',
@@ -3389,7 +3424,7 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
   }
 
   // ================= 设置 =================
-  var DEFAULTS = { mode: 'both', autoOpen: true, delaySeconds: 20, notify: true, quietHours: null, metrics: true, lan: false, lang: 'auto' };
+  var DEFAULTS = { mode: 'both', autoOpen: true, delaySeconds: 20, notify: true, notifyMinSeconds: 10, quietHours: null, metrics: true, lan: false, lang: 'auto' };
   var config = clone(DEFAULTS);
   var configPending = 0;
   var lastQuiet = store.get('last-quiet', { start: '23:00', end: '08:00' });
@@ -3421,6 +3456,9 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
     dl.disabled = remind || !config.autoOpen;
     $('#autoOpenDesc').textContent = t(remind ? 'set.autoOpen.descRemind' : 'set.autoOpen.desc');
     $('#setNotify').checked = !!config.notify;
+    var nm = $('#setNotifyMin');
+    if (document.activeElement !== nm) nm.value = config.notifyMinSeconds;
+    nm.disabled = !config.notify;
     var q = config.quietHours;
     $('#setQuiet').checked = !!q;
     var qs = $('#setQuietStart'), qe = $('#setQuietEnd');
@@ -3469,6 +3507,15 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
     if (v !== config.delaySeconds) saveConfig({ delaySeconds: v });
   });
   $('#setNotify').addEventListener('change', function (e) { saveConfig({ notify: e.target.checked }); });
+  $('#setNotifyMin').addEventListener('change', function (e) {
+    var v = Number(e.target.value);
+    if (!isFinite(v) || v < 0 || v > 3600 || Math.round(v) !== v) {
+      toast(t('toast.notifyMinRange'));
+      e.target.value = config.notifyMinSeconds;
+      return;
+    }
+    if (v !== config.notifyMinSeconds) saveConfig({ notifyMinSeconds: v });
+  });
   $('#setQuiet').addEventListener('change', function (e) {
     saveConfig({ quietHours: e.target.checked ? { start: lastQuiet.start, end: lastQuiet.end } : null });
   });
@@ -3823,7 +3870,7 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
   }
 
   // ---------- 版本号、GitHub star 提示、语言上报 ----------
-  var FALLBACK_VERSION = '0.3.1';
+  var FALLBACK_VERSION = '0.4.0';
   var stateVersion = '';
   function renderVersion() { $('#aboutVersion').textContent = 'v' + (stateVersion || FALLBACK_VERSION); }
   // star 提示：本地模式、活跃天数 ≥ 7、没关过才显示；关闭状态存 localStorage（store 已包 try/catch）
@@ -3843,6 +3890,23 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
       renderNudge();
     }).catch(function () {});
   }
+  // 首次自动打开的说明条：只在本地模式、网址带 ?src=auto、这个浏览器没显示过时出现；一显示就记为已看过
+  var INTRO_KEY = 'intro-seen';
+  var introShown = false;
+  function renderIntro() {
+    if (introShown) $('#introText').textContent = t('intro.text', { n: config.delaySeconds });
+  }
+  function checkIntro() {
+    if (RUN !== 'local' || params.get('src') !== 'auto' || store.get(INTRO_KEY, false) === true) return;
+    introShown = true;
+    store.set(INTRO_KEY, true);
+    renderIntro();
+    $('#introStrip').hidden = false;
+  }
+  function hideIntro() { introShown = false; $('#introStrip').hidden = true; }
+  $('#introOk').addEventListener('click', hideIntro);
+  $('#introRemind').addEventListener('click', function () { hideIntro(); saveConfig({ mode: 'remind' }); });
+  $('#introSettings').addEventListener('click', function () { hideIntro(); selectTab('settings', true); });
   // lang=auto 时把网页解析出的语言告诉后端，让系统通知用同一种语言；每次加载最多发一次，演示模式不发
   var langHintSent = false;
   function sendLangHint() {
@@ -3865,6 +3929,7 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
     renderRunTexts();
     setLive(liveNow);
     renderVersion();
+    renderIntro();
     Object.keys(games).forEach(function (k) { games[k].lang(); });
     relax.lang();
     if (curTab === 'stats') rerenderStats();
@@ -3888,6 +3953,7 @@ claude plugin install agent-waiting-room@waiting-room</code></pre>
     onState(d);
     sendLangHint();
     checkNudge();
+    checkIntro();
     var src = params.get('src');
     postEvent('hub_open', { source: src === 'auto' || src === 'link' ? src : 'manual' });
     if (curTab === 'stats') loadStats();

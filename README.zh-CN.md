@@ -25,7 +25,7 @@
 
 1. 你在 Claude Code 里提交任务，钩子记下「工作中」。
 2. 任务超过 20 秒还没结束，浏览器自动打开等候室（5 分钟内只打开一次，免得连着提交几个任务时反复弹）。
-3. Claude 干完、出错，或者停下来等你批准、等你回答时，等候室顶部弹出横幅，正在玩的游戏自动暂停，同时发一条 macOS 通知。
+3. Claude 干完、出错，或者停下来等你批准、等你回答时，等候室顶部弹出横幅，正在玩的游戏自动暂停，同时发一条系统通知。
 4. 你点「回去看看」，回到终端继续。
 
 ## 安装、升级、卸载
@@ -83,6 +83,7 @@ claude plugin uninstall agent-waiting-room@waiting-room
 | 关闭自动打开 | `/agent-waiting-room:config 关闭自动打开` |
 | 自动打开前多等一会儿 | `/agent-waiting-room:config 延迟 40 秒` |
 | 关闭系统通知 | `/agent-waiting-room:config 关闭通知` |
+| 短任务不要通知 | `/agent-waiting-room:config 最短通知秒数=30`（`notifyMinSeconds=0` 则每个回合都通知） |
 | 设置勿扰时段 | `/agent-waiting-room:config 勿扰 23:00-08:00`（`quietHours=off` 取消） |
 | 切换语言 | `/agent-waiting-room:config 语言 中文` / `lang=en` / `lang=auto` |
 | 关闭本机统计 | `/agent-waiting-room:config metrics=off` |
@@ -96,6 +97,7 @@ claude plugin uninstall agent-waiting-room@waiting-room
 | `autoOpen` | `true` | 回合超过 `delaySeconds` 仍在工作时自动打开等候室 |
 | `delaySeconds` | `20` | 自动打开前等待的秒数（0–3600） |
 | `notify` | `true` | 干完、出错、等你确认时发系统通知 |
+| `notifyMinSeconds` | `10` | 回合不足这么多秒就不发「干完了」的通知（0–3600）；等你确认和出错照常通知 |
 | `quietHours` | `null` | 勿扰时段，如 `23:00-08:00`，可跨午夜；期间不自动打开、不发通知 |
 | `lang` | `auto` | `auto` 跟随浏览器和系统语言；`zh` 或 `en` 固定一种 |
 | `metrics` | `true` | 是否在本机记录事件流水，供「我的数据」页统计 |
@@ -141,8 +143,8 @@ Codex CLI 和 Cursor 的钩子可以调用同一个脚本，写法在 [docs/adap
 
 ## 已知限制
 
-- 系统通知只做了 macOS。Windows 和 Linux 上其他功能照常，只是没有系统通知。
-- 短任务也会发通知。嫌吵可以切到「只要提醒」、设勿扰时段，或者把延迟调大。
+- 系统通知：macOS 用 `osascript`，Linux 用 `notify-send`（没有的话装 `libnotify`），Windows 和 WSL 用 PowerShell 的 toast。Windows 和 Linux 这两条路是 0.4 新加的，只过了单元测试，没在真机上弹过；页面里的横幅在哪都能用。
+- 不足 `notifyMinSeconds`（默认 10 秒）的回合不发通知。想每个回合都通知就设成 `0`。
 - 等候室在后台标签页时，横幅可能晚几秒到一分钟才出现，这是浏览器对后台页面的限制。
 - 桌面 App 里的长会话有时收不到结束事件，会一直显示「工作中」；10 分钟没动静会标成「可能已结束」，2 小时后自动清理。
 - 项目名取的是你提交任务时终端所在目录的名字。

@@ -11,9 +11,9 @@ const { spawn } = require('child_process');
 const S = require('./strings');
 
 const APP = 'agent-waiting-room';
-const VERSION = '0.3.1';
+const VERSION = '0.4.0';
 const DEFAULTS = Object.freeze({
-  mode: 'both', autoOpen: true, delaySeconds: 20, notify: true,
+  mode: 'both', autoOpen: true, delaySeconds: 20, notify: true, notifyMinSeconds: 10,
   quietHours: null, metrics: true, lan: false, port: 47823, lang: 'auto'
 });
 const MODES = ['both', 'remind'];
@@ -113,6 +113,9 @@ function normalizeConfig(raw) {
     for (const k of ['autoOpen', 'notify', 'metrics', 'lan']) if (typeof raw[k] === 'boolean') cfg[k] = raw[k];
     const d = Number(raw.delaySeconds);
     if (raw.delaySeconds !== undefined && Number.isFinite(d)) cfg.delaySeconds = Math.min(3600, Math.max(0, Math.round(d)));
+    // v0.3 的 config.json 没有 notifyMinSeconds：按默认 10 秒处理
+    const nm = Number(raw.notifyMinSeconds);
+    if (raw.notifyMinSeconds !== undefined && Number.isFinite(nm)) cfg.notifyMinSeconds = Math.min(3600, Math.max(0, Math.round(nm)));
     const q = parseQuietHours(raw.quietHours);
     if (q.ok) cfg.quietHours = q.value;
     const p = Number(raw.port);
@@ -203,7 +206,7 @@ function saveConfig(cfg) {
 function publicConfig(cfg) {
   return {
     mode: cfg.mode, autoOpen: cfg.autoOpen, delaySeconds: cfg.delaySeconds, notify: cfg.notify,
-    quietHours: cfg.quietHours, metrics: cfg.metrics, lan: cfg.lan, lang: cfg.lang || 'auto'
+    notifyMinSeconds: cfg.notifyMinSeconds, quietHours: cfg.quietHours, metrics: cfg.metrics, lan: cfg.lan, lang: cfg.lang || 'auto'
   };
 }
 function configWithoutToken(cfg) { return Object.assign(publicConfig(cfg), { port: cfg.port }); }
@@ -240,9 +243,9 @@ function validateConfigValue(key, value, strict, lang) {
       const b = typeof value === 'boolean' ? value : (strict ? null : parseBool(value));
       return b === null ? fail('cfg.bool', { key }) : { ok: true, value: b };
     }
-    case 'delaySeconds': {
+    case 'delaySeconds': case 'notifyMinSeconds': {
       const n = strict ? (typeof value === 'number' ? value : NaN) : Number(String(value).trim() || NaN);
-      return Number.isFinite(n) && n >= 0 && n <= 3600 ? { ok: true, value: Math.round(n) } : fail('cfg.delaySeconds');
+      return Number.isFinite(n) && n >= 0 && n <= 3600 ? { ok: true, value: Math.round(n) } : fail('cfg.' + key);
     }
     case 'quietHours': {
       const q = parseQuietHours(value);
@@ -461,29 +464,64 @@ function isHeadlessRun() {
 
 function detachedRun(cmd, args) {
   try {
-    const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+    const child = spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true });
     child.on('error', () => {});
     child.unref();
   } catch (_) {}
 }
 
-// 系统通知：title 是标题（如「干完了 · picpick-ios」），body 是正文。文字由调用方按语言生成
-function notify(title, body) {
+// Windows 10/11 的系统通知：PowerShell 调 WinRT 的 ToastNotification，整段脚本用 -EncodedCommand 传入，
+// 标题和正文写成 PowerShell 单引号字符串（单引号写两个）再做 XML 转义，项目名里有引号也不会出问题。
+// AppId 借用系统自带的 PowerShell，通知中心里显示为「Windows PowerShell」。
+const WIN_TOAST_APP_ID = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe';
+function psString(s) { return "'" + String(s).replace(/'/g, "''") + "'"; }
+function winToastScript(title, body) {
+  return [
+    '$t = [System.Security.SecurityElement]::Escape(' + psString(title) + ')',
+    '$b = [System.Security.SecurityElement]::Escape(' + psString(body) + ')',
+    '$null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]',
+    '$null = [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]',
+    '$xml = New-Object Windows.Data.Xml.Dom.XmlDocument',
+    '$xml.LoadXml("<toast><visual><binding template=\'ToastGeneric\'><text>$t</text><text>$b</text></binding></visual></toast>")',
+    '$toast = New-Object Windows.UI.Notifications.ToastNotification $xml',
+    '[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(' + psString(WIN_TOAST_APP_ID) + ').Show($toast)'
+  ].join('; ');
+}
+function powershellToast(title, body) {
+  const encoded = Buffer.from(winToastScript(title, body), 'utf16le').toString('base64');
+  return { cmd: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded] };
+}
+
+// WSL 里的 Linux 没有通知中心，但能直接调 Windows 的 powershell.exe
+function isWSL(platform, release) { return platform === 'linux' && /microsoft/i.test(String(release || '')); }
+
+// 各平台的通知命令。返回 { cmd, args }；不支持的平台返回 null。platform / release 可传入，方便测试
+function notifyCommand(title, body, platform, release) {
   const t = String(title || 'Waiting Room');
   const b = String(body || '');
-  if (isDryRun()) { dryRunRecord('notify', { title: t, body: b }); return; }
-  if (process.platform === 'darwin') {
+  const p = platform || process.platform;
+  if (p === 'darwin') {
     // 文本通过 argv 传入，避免引号转义问题
-    detachedRun('osascript', [
+    return { cmd: 'osascript', args: [
       '-e', 'on run argv',
       '-e', 'display notification (item 1 of argv) with title (item 2 of argv) sound name "Glass"',
       '-e', 'end run',
       b, t
-    ]);
-  } else if (process.platform === 'linux') {
-    detachedRun('notify-send', [t, b]);
+    ] };
   }
-  // Windows：暂不支持系统通知，网页里的横幅照常工作
+  if (p === 'win32' || isWSL(p, release === undefined ? os.release() : release)) return powershellToast(t, b);
+  if (p === 'linux') return { cmd: 'notify-send', args: ['-a', 'Waiting Room', '-u', 'normal', t, b] };
+  return null;
+}
+
+// 系统通知：title 是标题（如「干完了 · picpick-ios」），body 是正文。文字由调用方按语言生成。
+// macOS 用 osascript，Linux 用 notify-send，Windows 和 WSL 用 PowerShell 的 toast；命令不存在时静默失败，网页横幅照常
+function notify(title, body) {
+  const t = String(title || 'Waiting Room');
+  const b = String(body || '');
+  if (isDryRun()) { dryRunRecord('notify', { title: t, body: b }); return; }
+  const c = notifyCommand(t, b);
+  if (c) detachedRun(c.cmd, c.args);
 }
 
 function openBrowser(url) {
@@ -504,5 +542,5 @@ module.exports = {
   safeId, normalizeAgent, readSession, writeSession, removeSession, listSessions,
   STALE_MS, PRUNE_AFTER_MS, isStale, pruneSessions,
   getJSON, probeServer, ensureServer, sleep,
-  notify, openBrowser, isHeadlessRun, isDryRun
+  notify, notifyCommand, isWSL, openBrowser, isHeadlessRun, isDryRun
 };

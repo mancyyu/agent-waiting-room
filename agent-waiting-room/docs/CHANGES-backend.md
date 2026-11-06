@@ -193,3 +193,10 @@ node tests/run-tests.js
 15. 子进程默认 `WAITING_ROOM_LANG=zh`，让断言不受这台电脑系统语言的影响；要测英文的用例自己传 `env`。`envFor` 里值为 `null` 的键会从环境里删掉。
 16. 新增用例：`lang` 的解析和别名；旧 `config.json` 没有 `lang` 时按 `auto`；`resolveLang` 的每一级优先级（在本进程里改环境变量再恢复）；文案表的中英一致性、用时格式、错误类型短语；中英两种语言的通知文案（dry-run）；`config.lang` 和环境变量的优先关系；`/api/lang-hint` 正常、非法值、缺 Origin、GET；`/api/config` 的 `lang` 校验和它对 `resolvedLang` 的影响；命令行 `lang` 的键值别名、双语输出和「没有保存」；`status` / `stop` / 用法 / `open` 的英文输出；`bg-open` 不覆盖 `langHint`。
 17. 原有用例里和版本号、通知文字有关的断言同步改成 `0.3.0` 和新的 `{ title, body }` 格式。
+
+## 后端 v0.4 变更记录（2026-11-06）
+
+1. 新设置 `notifyMinSeconds`（0–3600，默认 10）：`finishTurn` 里 outcome 为 done 且回合用时不足这个秒数时不发通知，回合和事件照记；failed 和 needs_input 不受影响。`normalizeConfig`、`validateConfigValue`（和 `delaySeconds` 同一分支，报错 key `cfg.notifyMinSeconds`）、`publicConfig`、`/api/config` 白名单、命令行别名（`notifymin`、`notify-min-seconds`、`最短通知秒数` 等）和 `config` 的列表输出都加了它。v0.3 的 config.json 没有这个键时按 10 处理。
+2. `notify()` 拆成 `notifyCommand(title, body, platform, release)`（纯函数，可测）加 `detachedRun`。macOS 仍是 osascript；Linux `notify-send -a 'Waiting Room' -u normal`；Windows（`win32`）和 WSL（`linux` 且 `os.release()` 含 microsoft）用 `powershell.exe -EncodedCommand`，脚本调 WinRT 的 `ToastNotificationManager`，AppId 借用系统 PowerShell 的 AUMID；标题正文写成单引号字符串（`'` 写两个）再 `SecurityElement.Escape`。spawn 加 `windowsHide: true`。其他平台返回 null，不发。Windows / Linux 只过了单元测试，没有真机。
+3. 测试 80 项：新增 `notifyMinSeconds` 的校验和默认值、通知命令按平台、流程用例（不足 10 秒不通知 / 等你确认和出错照常 / 改回 0 又通知）、命令行别名。flow 和 auto 两个测试目录的配置写了 `notifyMinSeconds: 0`，原有的毫秒级回合用例才能继续收到通知。
+4. 版本 `0.4.0`；图标 `.claude-plugin/icon.png`（1024×1024，源文件在仓库 `docs/images/icon.svg`），`claude plugin validate` 不再提示 ICON_MISSING。

@@ -39,6 +39,7 @@
 | `autoOpen` | bool | `true` | 回合超过 `delaySeconds` 仍在工作时，自动打开网页（`mode=remind` 时视为 false） |
 | `delaySeconds` | 0–3600 | `20` | 自动打开前的等待秒数 |
 | `notify` | bool | `true` | 干完 / 要确认时发系统通知 |
+| `notifyMinSeconds` | 0–3600 | `10` | （v0.4）回合不足这么多秒不发「干完了」的通知；等你确认和出错不受限制 |
 | `quietHours` | `null` 或 `{ "start": "HH:MM", "end": "HH:MM" }` | `null` | 勿扰时段：期间不自动打开网页、不发系统通知；可跨午夜，如 23:00–08:00 |
 | `metrics` | bool | `true` | 是否在本机记录事件流水（关闭后第 5 节的事件不再写入，数据面板显示「已关闭」） |
 | `lan` | bool | `false` | 手机访问：开启后服务改为监听 0.0.0.0，局域网请求必须带令牌 |

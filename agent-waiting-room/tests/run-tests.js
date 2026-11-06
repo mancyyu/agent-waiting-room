@@ -244,14 +244,14 @@ test('勿扰时段：跨午夜和同一天的判定', () => {
 
 test('配置：默认值、令牌生成、公开子集', () => {
   const d = L.normalizeConfig({});
-  assert.deepStrictEqual(d, { mode: 'both', autoOpen: true, delaySeconds: 20, notify: true, quietHours: null, metrics: true, lan: false, port: 47823, lang: 'auto' });
+  assert.deepStrictEqual(d, { mode: 'both', autoOpen: true, delaySeconds: 20, notify: true, notifyMinSeconds: 10, quietHours: null, metrics: true, lan: false, port: 47823, lang: 'auto' });
   const saved = L.saveConfig({ lan: true });
   assert.ok(L.validToken(saved.lanToken) && saved.lanToken.length >= 24, '开启 lan 时应生成 24 位以上令牌');
   const again = L.saveConfig(Object.assign({}, saved, { notify: false }));
   assert.strictEqual(again.lanToken, saved.lanToken, '再次保存不应换令牌');
   const off = L.saveConfig(Object.assign({}, again, { lan: false }));
   assert.strictEqual(off.lanToken, saved.lanToken, '关闭 lan 时保留令牌');
-  assert.deepStrictEqual(Object.keys(L.publicConfig(off)).sort(), ['autoOpen', 'delaySeconds', 'lan', 'lang', 'metrics', 'mode', 'notify', 'quietHours']);
+  assert.deepStrictEqual(Object.keys(L.publicConfig(off)).sort(), ['autoOpen', 'delaySeconds', 'lan', 'lang', 'metrics', 'mode', 'notify', 'notifyMinSeconds', 'quietHours']);
   assert.ok(!('lanToken' in L.configWithoutToken(off)));
   assert.strictEqual(L.shouldAutoOpen({ autoOpen: true, mode: 'remind' }), false);
   assert.strictEqual(L.shouldAutoOpen({ autoOpen: true, mode: 'both' }), true);
@@ -279,6 +279,44 @@ test('配置：单项校验（网页严格 / 命令行宽松）', () => {
   assert.ok(L.validToken(v('lanToken', 'reset', false).value));
   assert.strictEqual(v('port', 80, true).ok, false);
   assert.strictEqual(v('nope', 1, true).ok, false);
+});
+
+test('notifyMinSeconds：默认 10，范围 0–3600，v0.3 的配置文件没有这个键时按默认', () => {
+  const v = L.validateConfigValue;
+  assert.strictEqual(L.normalizeConfig({}).notifyMinSeconds, 10);
+  assert.strictEqual(L.normalizeConfig({ notifyMinSeconds: 999999 }).notifyMinSeconds, 3600);
+  assert.strictEqual(L.normalizeConfig({ notifyMinSeconds: 'abc' }).notifyMinSeconds, 10);
+  assert.deepStrictEqual(v('notifyMinSeconds', 0, true), { ok: true, value: 0 });
+  assert.deepStrictEqual(v('notifyMinSeconds', '30', false), { ok: true, value: 30 });
+  assert.strictEqual(v('notifyMinSeconds', '30', true).ok, false);
+  assert.strictEqual(v('notifyMinSeconds', -1, true).ok, false);
+  assert.ok(v('notifyMinSeconds', 5000, true, 'en').error.includes('notifyMinSeconds'));
+  assert.ok(HAS_CJK.test(v('notifyMinSeconds', 5000, true, 'zh').error));
+  assert.ok('notifyMinSeconds' in L.publicConfig(L.normalizeConfig({})));
+});
+
+test('通知命令：macOS 用 osascript，Linux 用 notify-send，Windows 和 WSL 用 PowerShell toast，其他平台不发', () => {
+  const title = "干完了 · it's-proj", body = 'Claude <b> & "done"';
+  const mac = L.notifyCommand(title, body, 'darwin', '24.0.0');
+  assert.strictEqual(mac.cmd, 'osascript');
+  assert.deepStrictEqual(mac.args.slice(-2), [body, title], '正文和标题通过 argv 传入');
+  const lin = L.notifyCommand(title, body, 'linux', '6.1.0-generic');
+  assert.strictEqual(lin.cmd, 'notify-send');
+  assert.deepStrictEqual(lin.args.slice(-2), [title, body]);
+  for (const [p, rel] of [['win32', '10.0.22631'], ['linux', '5.15.90.1-microsoft-standard-WSL2']]) {
+    const w = L.notifyCommand(title, body, p, rel);
+    assert.strictEqual(w.cmd, 'powershell.exe', p);
+    const i = w.args.indexOf('-EncodedCommand');
+    assert.ok(i > 0 && w.args[i + 1], p + ' 应带 -EncodedCommand');
+    const script = Buffer.from(w.args[i + 1], 'base64').toString('utf16le');
+    assert.ok(script.includes('ToastNotificationManager') && script.includes('ToastGeneric'), p);
+    assert.ok(script.includes("'干完了 · it''s-proj'"), '单引号要写成两个：' + script);
+    assert.ok(script.includes("'Claude <b> & \"done\"'") && script.includes('SecurityElement]::Escape'), '正文原样进单引号字符串，再由 PowerShell 做 XML 转义');
+    assert.ok(!script.includes('\n'), '整段脚本一行');
+  }
+  assert.strictEqual(L.isWSL('linux', '5.15.90.1-microsoft-standard-WSL2'), true);
+  assert.strictEqual(L.isWSL('linux', '6.1.0-generic'), false);
+  assert.strictEqual(L.notifyCommand(title, body, 'freebsd', ''), null);
 });
 
 // =====================================================================
@@ -650,7 +688,8 @@ const cwdA = '/Users/someone/code/picpick-ios';
 
 let flowChild = null;
 test('[准备] 启动 flow 服务', async () => {
-  writeConfig(FLOW(), { autoOpen: false, delaySeconds: 1, lanToken: L.newLanToken() });
+  // 测试里的回合只有几十毫秒：notifyMinSeconds 设 0，让「干完了」照常通知；专门的用例再改成 10 测过滤
+  writeConfig(FLOW(), { autoOpen: false, delaySeconds: 1, notifyMinSeconds: 0, lanToken: L.newLanToken() });
   flowChild = await startServer(FLOW(), FP);
 });
 
@@ -953,6 +992,33 @@ test('notify=false：不发通知', async () => {
   await cli(FLOW(), FP, ['config', 'notify=on']);
 });
 
+test('notifyMinSeconds=10：几秒就回完的回合不通知「干完了」，但回合照记；等你确认和出错不受限制；改回 0 又通知', async () => {
+  const c = await cli(FLOW(), FP, ['config', 'notifyMinSeconds=10']);
+  assert.ok(c.stdout.includes('已保存') && c.stdout.includes('notifyMinSeconds = 10'), c.stdout);
+  let d0 = readDry(FLOW()).length;
+  const turnsBefore = readEvents(FLOW()).filter((e) => e.type === 'turn_end' && e.sid === 'sess-min').length;
+  await hookQuiet(FLOW(), FP, ['prompt'], { session_id: 'sess-min', cwd: '/x/min' });
+  await hookQuiet(FLOW(), FP, ['stop'], { session_id: 'sess-min' });
+  assert.strictEqual(readDry(FLOW()).length, d0, '不到 10 秒的回合不应通知');
+  assert.strictEqual(readEvents(FLOW()).filter((e) => e.type === 'turn_end' && e.sid === 'sess-min').length, turnsBefore + 1, '回合照常记录');
+  assert.strictEqual(readSessionFile(FLOW(), 'sess-min').status, 'done');
+  d0 = readDry(FLOW()).length;
+  await hookQuiet(FLOW(), FP, ['prompt'], { session_id: 'sess-min', cwd: '/x/min' });
+  await hookQuiet(FLOW(), FP, ['notification'], { session_id: 'sess-min', notification_type: 'permission_prompt' });
+  assert.strictEqual(readDry(FLOW()).length, d0 + 1, '等你确认照常通知');
+  assert.strictEqual(readDry(FLOW())[d0].detail.title, '等你确认 · min');
+  await hookQuiet(FLOW(), FP, ['tool'], { session_id: 'sess-min' });
+  await hookQuiet(FLOW(), FP, ['fail'], { session_id: 'sess-min', error: 'rate_limit' });
+  assert.strictEqual(readDry(FLOW()).length, d0 + 2, '出错照常通知');
+  assert.strictEqual(readDry(FLOW())[d0 + 1].detail.title, '出错了 · min');
+  await cli(FLOW(), FP, ['config', 'notifyMinSeconds=0']);
+  d0 = readDry(FLOW()).length;
+  await hookQuiet(FLOW(), FP, ['prompt'], { session_id: 'sess-min', cwd: '/x/min' });
+  await hookQuiet(FLOW(), FP, ['stop'], { session_id: 'sess-min' });
+  assert.strictEqual(readDry(FLOW()).length, d0 + 1, '设为 0 后又通知');
+  await hookQuiet(FLOW(), FP, ['end'], { session_id: 'sess-min' });
+});
+
 test('metrics=false：钩子不写事件，POST /api/event 返回 skipped', async () => {
   await cli(FLOW(), FP, ['config', 'metrics=off']);
   const before = readEvents(FLOW()).length;
@@ -998,7 +1064,7 @@ test('/api/state：版本、demo、config 子集、不含令牌、stale 标记',
   assert.strictEqual(j.app, 'agent-waiting-room');
   assert.strictEqual(j.version, L.VERSION);
   assert.strictEqual(j.demo, false);
-  assert.deepStrictEqual(Object.keys(j.config).sort(), ['autoOpen', 'delaySeconds', 'lan', 'lang', 'metrics', 'mode', 'notify', 'quietHours']);
+  assert.deepStrictEqual(Object.keys(j.config).sort(), ['autoOpen', 'delaySeconds', 'lan', 'lang', 'metrics', 'mode', 'notify', 'notifyMinSeconds', 'quietHours']);
   assert.strictEqual(j.config.lang, 'auto');
   assert.strictEqual(j.resolvedLang, 'zh', 'flow 服务的环境里 WAITING_ROOM_LANG=zh');
   assert.ok(readConfigFile(FLOW()).lanToken, '这个测试目录的配置里有令牌');
@@ -1029,7 +1095,7 @@ async function promptAndWatch(expectOpen) {
 }
 
 test('[准备] 启动 auto 服务', async () => {
-  writeConfig(AH(), { autoOpen: true, delaySeconds: 0, mode: 'both' });
+  writeConfig(AH(), { notifyMinSeconds: 0, autoOpen: true, delaySeconds: 0, mode: 'both' });
   await startServer(AH(), AP);
 });
 
@@ -1389,7 +1455,7 @@ const CP = PORTS.cli;
 
 test('命令行 config：新键的读写', async () => {
   const show = await cli(CH(), CP, ['config']);
-  for (const k of ['mode', 'autoOpen', 'delaySeconds', 'notify', 'quietHours', 'metrics', 'lan', 'lanToken', 'lang', 'port']) assert.ok(show.stdout.includes(k), '应列出 ' + k);
+  for (const k of ['mode', 'autoOpen', 'delaySeconds', 'notify', 'notifyMinSeconds', 'quietHours', 'metrics', 'lan', 'lanToken', 'lang', 'port']) assert.ok(show.stdout.includes(k), '应列出 ' + k);
   await cli(CH(), CP, ['config', 'quietHours=23:00-08:00']);
   assert.deepStrictEqual(readConfigFile(CH()).quietHours, { start: '23:00', end: '08:00' });
   await cli(CH(), CP, ['config', 'quietHours=off']);
@@ -1412,11 +1478,15 @@ test('命令行 config：新键的读写', async () => {
   assert.ok(L.validToken(f2.lanToken) && f2.lanToken !== f.lanToken, 'reset 后换新令牌');
   await cli(CH(), CP, ['config', 'lan=off']);
   assert.strictEqual(readConfigFile(CH()).lan, false);
+  await cli(CH(), CP, ['config', 'notifymin=30']);
+  assert.strictEqual(readConfigFile(CH()).notifyMinSeconds, 30, 'notifymin 是 notifyMinSeconds 的别名');
+  await cli(CH(), CP, ['config', '最短通知秒数=0']);
+  assert.strictEqual(readConfigFile(CH()).notifyMinSeconds, 0);
 });
 
 test('命令行 config：非法值不保存', async () => {
   const before = fs.readFileSync(path.join(CH(), 'config.json'), 'utf8');
-  for (const arg of ['mode=party', 'quietHours=25:00-01:00', 'quietHours=23:00', 'delaySeconds=9999', 'lanToken=abc', 'foo=1', 'metrics=maybe', 'port=80', 'novalue']) {
+  for (const arg of ['mode=party', 'quietHours=25:00-01:00', 'quietHours=23:00', 'delaySeconds=9999', 'notifyMinSeconds=-1', 'notifyMinSeconds=abc', 'lanToken=abc', 'foo=1', 'metrics=maybe', 'port=80', 'novalue']) {
     const r = await cli(CH(), CP, ['config', arg]);
     assert.ok(r.stdout.includes('没有保存'), arg + ' 应被拒绝：' + r.stdout);
   }

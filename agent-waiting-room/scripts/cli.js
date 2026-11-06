@@ -172,6 +172,8 @@ function finishTurn(ctx, outcome, reason, silent) {
   }
   if (silent) return;
   const kind = outcome === 'failed' ? 'failed' : 'done';
+  // 几秒就回完的回合，用户多半还盯着终端：不足 notifyMinSeconds 秒的「干完了」不通知。出错和等你确认不受这个限制
+  if (kind === 'done' && ms !== null && ms < ctx.cfg.notifyMinSeconds * 1000) return;
   const text = notifyText(ctx, kind, kind === 'failed' ? { reason } : { ms });
   maybeNotify(ctx, kind, text.title, text.body);
 }
@@ -318,6 +320,8 @@ const KEY_ALIASES = {
   autoopen: 'autoOpen', 'auto-open': 'autoOpen', auto_open: 'autoOpen', auto: 'autoOpen',
   delayseconds: 'delaySeconds', delay: 'delaySeconds', 'delay-seconds': 'delaySeconds',
   notify: 'notify', notification: 'notify', notifications: 'notify',
+  notifyminseconds: 'notifyMinSeconds', 'notify-min-seconds': 'notifyMinSeconds', notify_min_seconds: 'notifyMinSeconds',
+  notifymin: 'notifyMinSeconds', 'notify-min': 'notifyMinSeconds', minseconds: 'notifyMinSeconds', '最短通知秒数': 'notifyMinSeconds',
   quiethours: 'quietHours', quiet: 'quietHours', 'quiet-hours': 'quietHours', quiet_hours: 'quietHours', dnd: 'quietHours', '勿扰': 'quietHours',
   metrics: 'metrics', stats: 'metrics', '统计': 'metrics',
   lan: 'lan', phone: 'lan', mobile: 'lan', '手机访问': 'lan',
@@ -336,6 +340,7 @@ function describeConfig(cfg, lang) {
     '  autoOpen     = ' + cfg.autoOpen + '   ' + d('autoOpen'),
     '  delaySeconds = ' + cfg.delaySeconds + '   ' + d('delaySeconds'),
     '  notify       = ' + cfg.notify + '   ' + d('notify'),
+    '  notifyMinSeconds = ' + cfg.notifyMinSeconds + '   ' + d('notifyMinSeconds'),
     '  quietHours   = ' + L.formatQuietHours(cfg.quietHours) + '   ' + d('quietHours') + quietNow,
     '  metrics      = ' + cfg.metrics + '   ' + d('metrics'),
     '  lan          = ' + cfg.lan + '   ' + d('lan'),

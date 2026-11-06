@@ -22,6 +22,7 @@ Use only the Bash tool and only the command `waiting-room config ...` to view or
 | `autoOpen` | `true` / `false` | open the waiting room in the browser once an agent has worked longer than `delaySeconds` (ignored when `mode=remind`) |
 | `delaySeconds` | integer 0–3600 | seconds to wait before auto-opening |
 | `notify` | `true` / `false` | system notification when an agent finishes, needs input, or fails |
+| `notifyMinSeconds` | integer 0–3600 | turns shorter than this don't send the "Done" notification (default 10); "needs input" and "failed" always notify |
 | `quietHours` | a window like `23:00-08:00`, or `off` | quiet hours: no auto-open and no notifications in that window; may cross midnight |
 | `metrics` | `true` / `false` | keep usage stats on this computer only (never uploaded); the "My Data" page depends on them |
 | `lan` | `true` / `false` | phone access: phones on the same Wi-Fi can open the waiting room with a token |
@@ -40,6 +41,8 @@ Common phrasings and the keys they map to:
 | "wait 40 seconds before opening", "delay 40s", 「延迟 40 秒」 | `delaySeconds=40` |
 | "don't open the browser automatically", 「别自动打开」 | `autoOpen=false` |
 | "turn off notifications", 「关掉通知」 | `notify=false` |
+| "short tasks keep pinging me", "only notify for long tasks" (ask for the number if not given), 「短任务别通知」 | `notifyMinSeconds=30` |
+| "notify me for every turn", 「每个回合都通知」 | `notifyMinSeconds=0` |
 | "stop recording stats", 「别记统计」 | `metrics=false` |
 | "I want to see it on my phone", "phone access", 「手机也想看」「打开手机访问」 | `lan=true` |
 | "switch to English", "use English", 「用英文」 | `lang=en` |

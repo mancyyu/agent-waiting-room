@@ -2,7 +2,7 @@
 
 **Claude pings you when it's done. Play a round while you wait.**
 
-A Claude Code plugin that watches your coding agents for you. When Claude finishes, fails, or stops to ask for permission, you get a macOS notification and a banner in your browser. While it works, you get a local web page with a status board for every session, three 30-second games, a one-minute breathing exercise, and a page of local stats that tells you whether any of this is actually useful.
+A Claude Code plugin that watches your coding agents for you. When Claude finishes, fails, or stops to ask for permission, you get a system notification (macOS, Windows, Linux) and a banner in your browser. While it works, you get a local web page with a status board for every session, three 30-second games, a one-minute breathing exercise, and a page of local stats that tells you whether any of this is actually useful.
 
 Everything stays on your machine. It never reads your prompts or replies, never proxies a request, and has no ads.
 
@@ -79,6 +79,7 @@ To remove local data as well: `rm -rf ~/.claude/waiting-room`. To remove the mar
 | Stop auto-opening the page | `/agent-waiting-room:config autoOpen=false` |
 | Wait longer before auto-open | `/agent-waiting-room:config delay 40 seconds` |
 | Turn off system notifications | `/agent-waiting-room:config notify=false` |
+| Don't notify for short turns | `/agent-waiting-room:config notifyMinSeconds=30` (`0` notifies for every turn) |
 | Quiet hours | `/agent-waiting-room:config quiet hours 23:00-08:00` (`quietHours=off` to clear) |
 | Switch language | `/agent-waiting-room:config lang=en` / `lang=zh` / `lang=auto` |
 | Turn off local stats | `/agent-waiting-room:config metrics=off` |
@@ -92,6 +93,7 @@ The same settings are on the page's **Settings** tab. The file is `~/.claude/wai
 | `autoOpen` | `true` | Open the page when a turn is still running after `delaySeconds` |
 | `delaySeconds` | `20` | Seconds to wait before auto-opening (0–3600) |
 | `notify` | `true` | System notification on done / failed / needs input |
+| `notifyMinSeconds` | `10` | Turns shorter than this don't send the *Done* notification (0–3600); *needs input* and *failed* always notify |
 | `quietHours` | `null` | e.g. `23:00-08:00`, may cross midnight; no auto-open and no notifications inside it |
 | `lang` | `auto` | `auto` follows your browser and OS; `zh` or `en` to force |
 | `metrics` | `true` | Record a local event log for the My Data tab |
@@ -137,8 +139,8 @@ Codex CLI and Cursor hooks can call the same script; see [docs/adapters.md](agen
 
 ## Known limits
 
-- System notifications are macOS only. On Windows and Linux everything else works; there is just no notification.
-- Short tasks also notify. If that's too chatty, switch to *remind only*, set quiet hours, or raise the delay.
+- System notifications use `osascript` on macOS, `notify-send` on Linux (install `libnotify` if it's missing), and a PowerShell toast on Windows and WSL. The Windows and Linux paths are new in 0.4 and have only been unit-tested, not run on real hardware; the banner in the page works everywhere.
+- Turns shorter than `notifyMinSeconds` (10 s by default) don't notify. Set it to `0` if you want every turn.
 - With the page in a background tab, a banner can arrive a few seconds to a minute late — browsers throttle background pages.
 - In the desktop app, a long session sometimes never receives its end event and stays *Working*; it's marked *Probably ended* after 10 minutes and cleaned up after 2 hours.
 - The project name is the name of the directory your terminal was in when you submitted the task.

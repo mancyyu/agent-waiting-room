@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- 「等一下 / Waiting Room」插件图标：和等候室左上角的萤火虫标志同一个画面，放大到 1024 并铺满背景 -->
+  <defs>
+    <radialGradient id="sky" cx="40%" cy="58%" r="75%">
+      <stop offset="0" stop-color="#34408a"/>
+      <stop offset="1" stop-color="#1f2650"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#f6ff7a" stop-opacity=".55"/>
+      <stop offset=".55" stop-color="#f6ff7a" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#f6ff7a" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#sky)"/>
+  <!-- 月亮 -->
+  <circle cx="752" cy="272" r="80" fill="#fff3c4"/>
+  <circle cx="752" cy="272" r="80" fill="#fff3c4" opacity=".35" filter="url(#soft)"/>
+  <!-- 萤火虫的光 -->
+  <circle cx="440" cy="580" r="330" fill="url(#halo)"/>
+  <ellipse cx="400" cy="592" rx="118" ry="92" fill="#f6ff7a"/>
+  <ellipse cx="400" cy="592" rx="118" ry="92" fill="#f6ff7a" opacity=".5" filter="url(#soft)"/>
+  <!-- 身体和翅膀 -->
+  <ellipse cx="528" cy="576" rx="74" ry="66" fill="#2b2a33"/>
+  <ellipse cx="416" cy="464" rx="64" ry="128" fill="#ffffff" opacity=".62" transform="rotate(-30 416 464)"/>
+</svg>

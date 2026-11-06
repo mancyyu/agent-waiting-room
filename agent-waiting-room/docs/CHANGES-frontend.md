@@ -74,3 +74,9 @@
 5. Star 提示卡：活跃天数 ≥ 7 且未关闭过时显示在状态面板下方；关闭状态存 `localStorage`（`awr:star-nudge-dismissed`），演示模式不显示。
 6. URL 选标签页：`?tab=status|games|relax|stats|settings|about` 或 `#tab=…`，非法值忽略，只要提醒模式下 games/relax 回退到默认页。
 7. 文件 209,800 字节，仍是单文件 fragment；无外部脚本；无 alert/confirm/prompt。
+
+## 前端 v0.4 变更记录（2026-11-06）
+
+1. 首次自动打开的说明条 `#introStrip`：本地模式、网址带 `?src=auto`、`localStorage` 里没有 `awr:intro-seen` 时显示在标题下方；一显示就写入标记，之后不再出现。文案带当前 `delaySeconds`，切换语言时随 `applyLang()` 重画。按钮：知道了（关掉）、只要提醒别再自动打开（`saveConfig({ mode: 'remind' })`）、更多设置（跳到设置页）。演示模式和手动打开不显示。
+2. 设置页通知开关下面新增「回合不足 N 秒就不发『干完了』」数字框（`#setNotifyMin`，0–3600 整数，经 `/api/config` 保存；通知关闭时禁用）。`DEFAULTS` 加 `notifyMinSeconds: 10`。
+3. `FALLBACK_VERSION` 改为 `0.4.0`。中英文案各加 9 个 key（`intro.*`、`set.notifyMin.*`、`toast.notifyMinRange`）。

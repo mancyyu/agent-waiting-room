@@ -20,7 +20,7 @@ const CONFIG_POLL_MS = 2000;               // 命令行改了 lan 时，最多 2
 const STALE_ACTIVE_MS = 6 * 3600 * 1000;   // “工作中”超过 6 小时没动静，视为已失联，不再阻止自动退出
 const HUB_FILE = path.join(__dirname, '..', 'public', 'hub.html');
 const CSP = "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
-const CONFIG_KEYS_FROM_WEB = ['mode', 'autoOpen', 'delaySeconds', 'notify', 'quietHours', 'metrics', 'lan', 'lang'];
+const CONFIG_KEYS_FROM_WEB = ['mode', 'autoOpen', 'delaySeconds', 'notify', 'notifyMinSeconds', 'quietHours', 'metrics', 'lan', 'lang'];
 
 // 接口报错的语言：按当前解析结果（config.lang → WAITING_ROOM_LANG → 网页上报的 langHint → 系统语言）
 function apiText(cfg, key, vars) { return S.t(L.resolveLang(cfg), key, vars); }

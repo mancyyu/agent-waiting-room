@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 — 2026-11-06
+
+- New setting `notifyMinSeconds` (default 10): turns shorter than this no longer send the *Done* notification. *Needs input* and *Failed* always notify. Also on the Settings tab.
+- System notifications on Linux (`notify-send`) and on Windows and WSL (PowerShell toast). Not yet verified on real hardware.
+- A one-time note at the top of the page the first time it opens on its own: what opened it, why, and how to switch to remind-only.
+- Plugin icon.
+
 ## 0.3.1 — 2026-11-06
 
 - Fix: after a plugin upgrade, an older local server left running on the port (it never idles out while the page is open) kept serving the old page. The hooks now compare the running server's version and replace it.
