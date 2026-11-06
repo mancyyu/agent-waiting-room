@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 — 2026-11-06
+
+- Fix: after a plugin upgrade, an older local server left running on the port (it never idles out while the page is open) kept serving the old page. The hooks now compare the running server's version and replace it.
+
 ## 0.3.0 — 2026-11-06
 
 Public release.

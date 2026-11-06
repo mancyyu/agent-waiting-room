@@ -1,7 +1,7 @@
 {
   "name": "agent-waiting-room",
   "displayName": "Waiting Room (等一下)",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Status board for your coding agents: get a system notification when Claude finishes, fails, or needs your input, and a 30-second game while you wait. Local-only, no ads. ／ 多个 agent 会话的状态一眼看清，干完、出错或要你确认时提醒你，等待时给一局小游戏。数据只存本机。",
   "author": {
     "name": "mancy"

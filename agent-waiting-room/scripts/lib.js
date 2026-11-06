@@ -11,7 +11,7 @@ const { spawn } = require('child_process');
 const S = require('./strings');
 
 const APP = 'agent-waiting-room';
-const VERSION = '0.3.0';
+const VERSION = '0.3.1';
 const DEFAULTS = Object.freeze({
   mode: 'both', autoOpen: true, delaySeconds: 20, notify: true,
   quietHours: null, metrics: true, lan: false, port: 47823, lang: 'auto'
@@ -425,8 +425,18 @@ function startServerDetached() {
 // 确保本地服务在跑。返回 { ok: true } 或 { ok: false, reason }
 async function ensureServer(cfg) {
   const first = await probeServer(cfg.port);
-  if (first.kind === 'ours') return { ok: true };
   if (first.kind === 'foreign') return { ok: false, reason: 'port-in-use' };
+  if (first.kind === 'ours') {
+    const info = first.info || {};
+    if (info.version === VERSION) return { ok: true };
+    // 插件升级后，旧版本的服务往往还在跑（网页开着就不会空闲退出）：先停掉它，再起新版本
+    try { if (info.pid) process.kill(info.pid, 'SIGTERM'); } catch (_) {}
+    for (let i = 0; i < 20; i++) {
+      await sleep(100);
+      if ((await probeServer(cfg.port)).kind === 'none') break;
+    }
+    log('发现旧版本服务 ' + (info.version || '?') + '，重启为 ' + VERSION);
+  }
   startServerDetached();
   for (let i = 0; i < 30; i++) {
     await sleep(150);

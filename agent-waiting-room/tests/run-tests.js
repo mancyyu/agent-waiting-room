@@ -19,13 +19,13 @@ const CLI = path.join(ROOT, 'scripts', 'cli.js');
 const SERVER = path.join(ROOT, 'scripts', 'server.js');
 const BIN = path.join(ROOT, 'bin', 'waiting-room');
 const HUB_FILE = path.join(ROOT, 'public', 'hub.html');
-const PORTS = { main: 47901, lan: 47902, foreign: 47903, idle: 47904, flow: 47905, auto: 47906, cli: 47907, unit: 47908 };
+const PORTS = { main: 47901, lan: 47902, foreign: 47903, idle: 47904, flow: 47905, auto: 47906, cli: 47907, unit: 47908, stale: 47909 };
 const REAL_PORT = 47823;
 if (Object.values(PORTS).includes(REAL_PORT)) throw new Error('测试端口不能用 47823');
 
 const RUN_DIR = fs.mkdtempSync(path.join(process.env.WR_TEST_TMP || os.tmpdir(), 'wr-test-'));
 const HOMES = {};
-for (const k of ['unit', 'main', 'lan', 'foreign', 'idle', 'flow', 'auto', 'cli', 'prune']) {
+for (const k of ['unit', 'main', 'lan', 'foreign', 'idle', 'flow', 'auto', 'cli', 'prune', 'stale']) {
   HOMES[k] = path.join(RUN_DIR, k);
   fs.mkdirSync(HOMES[k], { recursive: true });
 }
@@ -573,7 +573,7 @@ test('导出：不含会话 ID 和项目名，带 exportedAt / version / mode', 
   const text = JSON.stringify(out);
   assert.ok(!text.includes('sid-secret'), '导出里不应有会话 ID');
   assert.ok(!/"sid"|"sessionId"|"project"/.test(text));
-  assert.strictEqual(out.version, '0.3.0');
+  assert.strictEqual(out.version, L.VERSION);
   assert.strictEqual(out.mode, 'both');
   assert.ok(!Number.isNaN(Date.parse(out.exportedAt)));
   assert.strictEqual(out.totals.turns, 12);
@@ -996,7 +996,7 @@ test('/api/state：版本、demo、config 子集、不含令牌、stale 标记',
   assert.strictEqual(r.status, 200);
   const j = r.json;
   assert.strictEqual(j.app, 'agent-waiting-room');
-  assert.strictEqual(j.version, '0.3.0');
+  assert.strictEqual(j.version, L.VERSION);
   assert.strictEqual(j.demo, false);
   assert.deepStrictEqual(Object.keys(j.config).sort(), ['autoOpen', 'delaySeconds', 'lan', 'lang', 'metrics', 'mode', 'notify', 'quietHours']);
   assert.strictEqual(j.config.lang, 'auto');
@@ -1131,7 +1131,7 @@ test('Host 检查、OPTIONS、错误方法、未知路径', async () => {
   assert.strictEqual((await request(MP, { path: '/api/event' })).status, 405);
   assert.strictEqual((await request(MP, { path: '/nope' })).status, 404);
   const h = await health(MP);
-  assert.strictEqual(h.version, '0.3.0');
+  assert.strictEqual(h.version, L.VERSION);
 });
 
 test('POST 的 CSRF 防护：缺 Origin、错 Origin、非 JSON、超过 4 KB 都拒绝', async () => {
@@ -1278,7 +1278,7 @@ test('GET /api/export：附件下载头，匿名（没有项目名和会话 ID�
   assert.ok(!r.body.includes('secret-sid-xyz'), '不能有会话 ID');
   assert.ok(!r.body.includes('secret-proj-xyz'), '不能有项目名');
   assert.ok(!/"sid"|"sessionId"|"project"/.test(r.body));
-  assert.strictEqual(r.json.version, '0.3.0');
+  assert.strictEqual(r.json.version, L.VERSION);
   assert.strictEqual(r.json.mode, 'both');
   assert.ok(!Number.isNaN(Date.parse(r.json.exportedAt)));
   assert.strictEqual(r.json.totals.turns, 1);
@@ -1497,6 +1497,27 @@ test('端口被别的程序占用：服务退出码 3，open 命令给出提示'
     assert.ok(!readDry(HOMES.foreign).some((x) => x.kind === 'open'), '端口被占时不打开浏览器');
   } finally {
     await new Promise((r) => foreign.close(r));
+  }
+});
+
+// v0.3.1：插件升级后，旧版本的服务还在端口上（网页开着就不会空闲退出），钩子应把它换成新版本
+test('升级后旧版本服务仍在运行：open 会停掉它并启动当前版本', async () => {
+  const fakeSrc = "const http=require('http');http.createServer((q,r)=>{r.setHeader('Content-Type','application/json');r.end(JSON.stringify({app:'" + L.APP + "',version:'0.0.1',pid:process.pid,port:" + PORTS.stale + "}))}).listen(" + PORTS.stale + ",'127.0.0.1');setInterval(()=>{},1000)";
+  const fake = spawn(process.execPath, ['-e', fakeSrc], { stdio: 'ignore' });
+  const fakeExited = new Promise((r) => fake.on('exit', (code, sig) => r({ code, sig })));
+  try {
+    const up = await waitFor(async () => { const h = await health(PORTS.stale); return h && h.version === '0.0.1'; }, 3000);
+    assert.ok(up, '假的旧版本服务应先起来');
+    const o = await cli(HOMES.stale, PORTS.stale, ['open']);
+    assert.strictEqual(o.code, 0, o.stdout + o.stderr);
+    const swapped = await waitFor(async () => { const h = await health(PORTS.stale); return h && h.version === L.VERSION && h.pid !== fake.pid; }, 6000);
+    assert.ok(swapped, '端口上应换成当前版本的服务');
+    const gone = await Promise.race([fakeExited, sleep(2000).then(() => null)]);
+    assert.ok(gone, '旧服务进程应已退出');
+    assert.ok(readDry(HOMES.stale).some((x) => x.kind === 'open'), '替换后照常打开网页');
+  } finally {
+    try { fake.kill('SIGKILL'); } catch (_) {}
+    await cli(HOMES.stale, PORTS.stale, ['stop']);
   }
 });
 
